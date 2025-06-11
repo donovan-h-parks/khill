@@ -24,6 +24,7 @@ groupB  /path/to/genome4.fna
 # Install
 
 ## Building K-Hill from Source
+
 Ensure you have [Rust](https://www.rust-lang.org/tools/install) installed. Then, build the project with:
 
 ```!sh
@@ -39,7 +40,9 @@ The compiled binary will be located at `target/release/khill`.
 A pre-built executable is provided for x86-64 Linux systems which can be obtained using:
 
 ```!sh
-wget https://github.com/donovan-h-parks/khill/releases/download/<version>>/khill
+wget https://github.com/donovan-h-parks/khill/releases/download/<version>/khill
 chmod +x khill
 ./khill -h
 ```
+
+__Important__: the pre-built executable can run substantially slower (2 to 3x) than building a native executable
