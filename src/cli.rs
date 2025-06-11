@@ -42,6 +42,10 @@ pub struct Cli {
     /// Number of threads to use
     #[arg(short, long, default_value_t = 1, value_parser = validate_threads)]
     pub threads: usize,
+
+    /// Skip verification that genomic FASTA files exist
+    #[arg(long, default_value_t = false)]
+    pub skip_file_check: bool,
 }
 
 fn validate_kmer_length(k: &str) -> Result<u8, String> {

@@ -37,7 +37,7 @@ cargo build --release
 
 The compiled binary will be located at `target/release/khill`.
 
-## Pre-build executable
+## Pre-build Executable
 
 A pre-built executable is provided for x86-64 Linux systems which can be obtained using:
 

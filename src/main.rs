@@ -20,6 +20,7 @@ use log::info;
 use crate::cli::Cli;
 use crate::logging::setup_logger;
 use crate::khill::khill;
+use crate::progress::progress_bar;
 use crate::sketch_params::SketchParams;
 
 mod cli;
@@ -86,6 +87,7 @@ fn main() -> Result<()> {
     init(args.threads)?;
 
     // determine if input is being specified via a directory or a file table
+
     let groups = if let Some(genome_group_table) = args.genome_group_table {
         info!("Using genome group file: {}", genome_group_table.display());
         parse_genome_groups_file(&genome_group_table)?
@@ -111,12 +113,19 @@ fn main() -> Result<()> {
     };
 
     // check that all genomic FASTA files exist
-    for (group, genome_paths) in &groups {
-        for path in genome_paths {
-            if !path.exists() {
-                return Err(anyhow::anyhow!("Genome file {} in group '{}' does not exist.", path.display(), group));
+    if !args.skip_file_check {
+        info!("Verifying all genomic FASTA files exist.");
+        let num_genomes = groups.values().map(|v| v.len()).sum::<usize>();
+        let progress_bar = progress_bar(num_genomes as u64);
+        for (group, genome_paths) in &groups {
+            for path in genome_paths {
+                if !path.exists() {
+                    return Err(anyhow::anyhow!("Genome file {} in group '{}' does not exist.", path.display(), group));
+                }
+                progress_bar.inc(1);
             }
         }
+        progress_bar.finish();
     }
 
     // open output file for group k-hill and per genome entropy results
