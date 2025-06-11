@@ -8,10 +8,10 @@ K-Hill is a method and software package that can quantify molecular diversity in
 # Running K-Hill
 
 K-Hill can be run two ways:
-1. with --directory which will measure K-Hill across all genomic FASTA files in the specified directory
-2. with --file_table which will measure K-Hill across specified groups of genomes
+1. with --input-dir which will measure K-Hill across all genomic FASTA files (*.fa, *.fna, *.fasta) in the specified directory
+2. with --genome-group-table which will measure K-Hill across specified groups of genomes
 
-The `--file_table` input file should be a tab separated values (TSV) file with two columns indicating the group of each genome and the path to a genomic FASTA file. For example:
+The `genome-group-table` input file should be a tab separated values (TSV) file with two columns indicating the group of each genome and the path to a genomic FASTA file. For example:
 
 ```
 # group_id  fasta_file_path
@@ -20,6 +20,8 @@ groupA  /path/to/genome2.fna
 groupB  /path/to/genome3.fna
 groupB  /path/to/genome4.fna
 ```
+
+K-Hill benefits substantially from using multiple threads which can be specified with the `--threads` flag. By default, k-hill runs with a k-mer length (--kmer_length) of 19 and a scaling factor (--scale) of 100 (i.e. k-hill is applied to sketches containing ~1% of all k-mers). 
 
 # Install
 
