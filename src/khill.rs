@@ -13,10 +13,9 @@ use std::collections::{BTreeMap, HashMap};
 
 use anyhow::{Context, Result};
 use needletail::parse_fastx_reader;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
 
 use crate::hashing::ItemHash;
-use crate::progress::progress_bar;
 use crate::sketch_params::SketchParams;
 use crate::frac_min_hash::Hashes;
 use crate::io_utils::genome_id_from_filename;
@@ -30,52 +29,70 @@ pub struct HillComponent {
 
 /// Calculate beta entropy using the K-Hill method.
 pub fn khill(genome_files: &Vec<PathBuf>, sketch_params: &SketchParams) -> Result<(f64, HashMap<String, HillComponent>)> {
-    let progress_bar = progress_bar(genome_files.len() as u64);
-
     // calculate hashes for all genomes in parallel
     let genome_hashes: HashMap<String, Hashes> = genome_files
         .par_iter()
         .map(|genome_file| {
             let genome_id = genome_id_from_filename(genome_file);
             let hashes = sketch_file(genome_file, sketch_params).expect("Failed to create sketch");
-            progress_bar.inc(1);
             (genome_id, hashes)
         })
         .collect();
 
-    progress_bar.finish();
-
-    // determine k-mers across all genomes
-    let mut all_kmers = BTreeMap::<ItemHash, u64>::new();
-    let mut total_num_hashes = 0;
-    for hashes in genome_hashes.values() {
-        for (hash, count) in hashes {
-            *all_kmers.entry(*hash).or_insert(0) += *count as u64;
-            total_num_hashes += *count as u64;
-        }
-    }
-
-    // calculate the K-hill number
-    let mut khill = 0.0;
-    let mut genome_entropy = HashMap::new();
-    for (genome_id, hashes) in &genome_hashes {
-        let mut kl_divergence = 0.0;
-        let num_genome_hashes: u64 = hashes.values().map(|&v| v as u64).sum();
-        for (hash, count) in hashes {
-            if let Some(total_count) = all_kmers.get(hash) {
-                let p_si = *count as f64 / num_genome_hashes as f64;
-                let p_i = *total_count as f64 / total_num_hashes as f64;
-                kl_divergence += p_si * (p_si/p_i).ln();
+    // determine k-mers across all genomes in parallel using map-reduce
+    let all_kmers = genome_hashes.values()
+        .par_bridge()
+        .map(|hashes| {
+            // Create a local BTreeMap for each thread
+            let mut local_map = BTreeMap::<ItemHash, u64>::new();
+            for (hash, count) in hashes {
+                *local_map.entry(*hash).or_insert(0) += *count as u64;
             }
-        }
+            local_map
+        })
+        .reduce(
+            // Initial empty map
+            BTreeMap::<ItemHash, u64>::new,
+            // Combine two maps
+            |mut acc, map| {
+                for (hash, count) in map {
+                    *acc.entry(hash).or_insert(0) += count;
+                }
+                acc
+            }
+        );
 
-        let weight = num_genome_hashes as f64 / total_num_hashes as f64;
-        khill += weight * kl_divergence;
+    
 
-        genome_entropy.insert(genome_id.clone(), HillComponent{kl_divergence, weight});
-    }
+    // calculate the K-hill number in parallel
+    let total_num_hashes: u64 = all_kmers.values().sum();
+    
+    let genome_results: HashMap<String, HillComponent> = genome_hashes
+        .par_iter()
+        .map(|(genome_id, hashes)| {
+            let num_genome_hashes: u64 = hashes.values().map(|&v| v as u64).sum();
+            
+            let kl_divergence = hashes.iter()
+                .filter_map(|(hash, count)| {
+                    all_kmers.get(hash).map(|total_count| {
+                        let p_si = *count as f64 / num_genome_hashes as f64;
+                        let p_i = *total_count as f64 / total_num_hashes as f64;
+                        p_si * (p_si/p_i).ln()
+                    })
+                })
+                .sum();
 
-    Ok((khill.exp(), genome_entropy))
+            let weight = num_genome_hashes as f64 / total_num_hashes as f64;
+            (genome_id.clone(), HillComponent { kl_divergence, weight })
+        })
+        .collect();
+
+    // calculate final K-hill value
+    let khill = genome_results.values()
+        .map(|comp| comp.weight * comp.kl_divergence)
+        .sum::<f64>();
+
+    Ok((khill.exp(), genome_results))
 }
 
 /// Create sketch from sequence file.

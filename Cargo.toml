@@ -1,6 +1,6 @@
 [package]
 name = "khill"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Donovan Parks"]
 description = "Calculates the effective number of genomes in a collection of assembled genomes."
 readme = "../README.md"

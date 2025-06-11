@@ -141,11 +141,11 @@ fn main() -> Result<()> {
     // process each group of genomes
     let sketch_params = SketchParams::new(args.kmer_length, args.scale, true);
     info!("Processing {} genome groups:", groups.len());
+    let progress_bar = progress_bar(groups.len() as u64);
     for (group, genome_paths) in &groups {
         let (k_hill, genome_stats) = khill(genome_paths, &sketch_params)?;
-        info!(" - {}: {} genomes; {:.2} effective genomes", group, genome_paths.len(), k_hill);
-        writeln!(khill_writer, "{}\t{}\t{}", group, genome_paths.len(), k_hill)?;
 
+        writeln!(khill_writer, "{}\t{}\t{}", group, genome_paths.len(), k_hill)?;
         for (genome_id, components) in genome_stats {
             writeln!(genome_entropy_writer, "{}\t{}\t{}\t{}", 
             genome_id, 
@@ -153,7 +153,11 @@ fn main() -> Result<()> {
             components.kl_divergence, 
             components.weight)?;
         }
+
+        progress_bar.inc(1);
     }
+
+    progress_bar.finish();
 
     info!("Elapsed time (sec): {:.2}", start.elapsed().as_secs_f32());
     info!("Done.");
