@@ -2,6 +2,10 @@ name: "tagged-release"
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag to release (must already exist)"
+        required: false
   push:
     tags:
       - "v*"
@@ -12,16 +16,35 @@ jobs:
     runs-on: "ubuntu-latest"
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Determine ref
+        id: ref
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "REF=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "REF=${{ github.ref }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout code at tag
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ steps.ref.outputs.REF }}
+
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - run: sudo apt-get install musl musl-tools; rustup target add x86_64-unknown-linux-musl; cargo build --release --target=x86_64-unknown-linux-musl
-      - uses: "marvinpinto/action-automatic-releases@latest"
+
+      - name: Install MUSL and build release binary
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl musl-tools
+          rustup target add x86_64-unknown-linux-musl
+          cargo build --release --target=x86_64-unknown-linux-musl
+
+      - name: Upload GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: false
-          automatic_release_tag: "latest"
-          files: |
-            target/x86_64-unknown-linux-musl/release/skani
-            
+          tag_name: ${{ steps.ref.outputs.REF }}
+          files: target/x86_64-unknown-linux-musl/release/khill
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
