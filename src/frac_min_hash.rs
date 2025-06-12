@@ -8,14 +8,9 @@
 //! 
 //! See Hera et al., 2024: https://www.biorxiv.org/content/10.1101/2023.11.06.565843v3
 
-use std::collections::BTreeMap;
-
 use needletail::parser::SequenceRecord;
 
-use crate::hashing::{dna_hashes, ItemHash};
-
-pub type KmerCount = u16;
-pub type Hashes = BTreeMap<ItemHash, KmerCount>;
+use crate::hashing::{dna_hashes, ItemHash, Hashes};
 
 #[derive(Clone, Debug)]
 pub struct FracMinHash {
@@ -29,7 +24,7 @@ pub struct FracMinHash {
 impl FracMinHash {
     pub fn new(kmer_length: u8, scale: u64) -> Self {
         FracMinHash {
-            hashes: BTreeMap::new(),
+            hashes: Hashes::default(),
             kmer_length,
             max_hash: ItemHash::MAX / scale,
             kmer_total_count: 0,

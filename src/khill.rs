@@ -9,15 +9,14 @@
 
 use std::fs::File;
 use std::path::PathBuf;
-use std::collections::{BTreeMap, HashMap};
+use rustc_hash::FxHashMap;
 
 use anyhow::{Context, Result};
 use needletail::parse_fastx_reader;
 use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
 
-use crate::hashing::ItemHash;
+use crate::hashing::{ItemHash, Hashes};
 use crate::sketch_params::SketchParams;
-use crate::frac_min_hash::Hashes;
 use crate::io_utils::genome_id_from_filename;
 
 /// Hill components.
@@ -28,9 +27,9 @@ pub struct HillComponent {
 }
 
 /// Calculate beta entropy using the K-Hill method.
-pub fn khill(genome_files: &Vec<PathBuf>, sketch_params: &SketchParams) -> Result<(f64, HashMap<String, HillComponent>)> {
+pub fn khill(genome_files: &Vec<PathBuf>, sketch_params: &SketchParams) -> Result<(f64, FxHashMap<String, HillComponent>)> {
     // calculate hashes for all genomes in parallel
-    let genome_hashes: HashMap<String, Hashes> = genome_files
+    let genome_hashes: FxHashMap<String, Hashes> = genome_files
         .par_iter()
         .map(|genome_file| {
             let genome_id = genome_id_from_filename(genome_file);
@@ -43,8 +42,8 @@ pub fn khill(genome_files: &Vec<PathBuf>, sketch_params: &SketchParams) -> Resul
     let all_kmers = genome_hashes.values()
         .par_bridge()
         .map(|hashes| {
-            // Create a local BTreeMap for each thread
-            let mut local_map = BTreeMap::<ItemHash, u64>::new();
+            // Create a local HashMap for each thread
+            let mut local_map = FxHashMap::<ItemHash, u64>::default();
             for (hash, count) in hashes {
                 *local_map.entry(*hash).or_insert(0) += *count as u64;
             }
@@ -52,7 +51,7 @@ pub fn khill(genome_files: &Vec<PathBuf>, sketch_params: &SketchParams) -> Resul
         })
         .reduce(
             // Initial empty map
-            BTreeMap::<ItemHash, u64>::new,
+            FxHashMap::<ItemHash, u64>::default,
             // Combine two maps
             |mut acc, map| {
                 for (hash, count) in map {
@@ -62,12 +61,10 @@ pub fn khill(genome_files: &Vec<PathBuf>, sketch_params: &SketchParams) -> Resul
             }
         );
 
-    
-
     // calculate the K-hill number in parallel
     let total_num_hashes: u64 = all_kmers.values().sum();
     
-    let genome_results: HashMap<String, HillComponent> = genome_hashes
+    let genome_results: FxHashMap<String, HillComponent> = genome_hashes
         .par_iter()
         .map(|(genome_id, hashes)| {
             let num_genome_hashes: u64 = hashes.values().map(|&v| v as u64).sum();

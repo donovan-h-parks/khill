@@ -12,7 +12,7 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::PathBuf;
 use std::time::Instant;
 
-use ahash::{HashMap, HashMapExt};
+use std::collections::HashMap;
 use anyhow::{Result};
 use clap::Parser;
 use log::info;
